@@ -16,7 +16,13 @@ export interface MessageRecord {
     topic: string;
     content: string;
     status: MessageStatus;
+    claimed_by: string | null;
+    claimed_at: string | null;
     created_at: string;
+}
+export interface ClaimResult<T> {
+    claimed: boolean;
+    record?: T;
 }
 export interface TaskRecord {
     id: number;
@@ -24,6 +30,8 @@ export interface TaskRecord {
     description: string;
     assigned_to: string;
     status: TaskStatus;
+    claimed_by: string | null;
+    claimed_at: string | null;
     created_at: string;
     updated_at: string;
 }

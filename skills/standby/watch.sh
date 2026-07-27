@@ -17,6 +17,7 @@ INTERVAL="${2:-300}"
 DB="${MEMORAI_DB:-$HOME/memorai/memorai.db}"
 STATE_DIR="$HOME/.agents/state"
 STATE="$STATE_DIR/standby-last-seen-$AGENT"
+TAB=$'\t'
 
 if [ -z "$AGENT" ]; then
   echo "usage: watch.sh <agent_id> [interval_seconds]" >&2
@@ -39,7 +40,7 @@ echo "standby watch · agent=$AGENT · every ${INTERVAL}s · from message id > $
 echo "Ctrl-C to stop."
 
 while true; do
-  rows=$(sqlite3 -readonly -separator '|' "$DB" "
+  rows=$(sqlite3 -readonly -separator "$TAB" "$DB" "
     select id, from_agent, to_agent, status, topic
     from messages
     where id > $last
@@ -48,15 +49,15 @@ while true; do
     order by id;")
 
   if [ -n "$rows" ]; then
-    direct=$(printf '%s\n' "$rows" | awk -F'|' -v a="$AGENT" '$3 == a')
-    bcast=$(printf '%s\n' "$rows"  | awk -F'|' -v a="$AGENT" '$3 != a')
+    direct=$(printf '%s\n' "$rows" | awk -F"$TAB" -v a="$AGENT" '$3 == a')
+    bcast=$(printf '%s\n' "$rows"  | awk -F"$TAB" -v a="$AGENT" '$3 != a')
     n_direct=$(printf '%s' "$direct" | grep -c . || true)
 
     printf '\n[%s]\n' "$(date '+%H:%M')"
 
     if [ -n "$direct" ]; then
       printf '  %s message(s) for you:\n' "$n_direct"
-      printf '%s\n' "$direct" | while IFS='|' read -r id from to status topic; do
+      printf '%s\n' "$direct" | while IFS="$TAB" read -r id from to status topic; do
         printf '    #%-4s %-14s %-16s %s\n' "$id" "$from" "$status" "$topic"
       done
       echo "    → tell your agent to run its standby cycle."
@@ -64,7 +65,7 @@ while true; do
 
     if [ -n "$bcast" ]; then
       printf '  broadcasts (FYI — not work, no action needed):\n'
-      printf '%s\n' "$bcast" | while IFS='|' read -r id from to status topic; do
+      printf '%s\n' "$bcast" | while IFS="$TAB" read -r id from to status topic; do
         printf '    #%-4s %-14s %-16s %s\n' "$id" "$from" "$status" "$topic"
         # ACTION_REQUIRED to 'all' violates the one-owner rule: every idle agent
         # sees it and each can claim it. Flag it; it needs a named owner.
@@ -74,7 +75,7 @@ while true; do
       done
     fi
 
-    last=$(printf '%s\n' "$rows" | tail -1 | cut -d'|' -f1)
+    last=$(printf '%s\n' "$rows" | tail -1 | cut -d"$TAB" -f1)
     echo "$last" > "$STATE"
 
     # Only messages addressed to you are worth interrupting for.

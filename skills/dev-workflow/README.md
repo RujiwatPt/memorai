@@ -52,6 +52,11 @@ Links land in `~/.claude/skills/`, `~/.codex/skills/`, `~/.gemini/skills/`
 (Antigravity), and `~/.cursor/skills-cursor/`. Restart an agent to pick up
 changes.
 
+**Standalone copy?** Skills are meant to live in this repo. If you copy a skill
+folder elsewhere, run `bash ~/memorai/scripts/sync-skills.sh <name>` from a
+memorai clone to symlink it back into your agents — there is no per-skill
+installer.
+
 ## Editing
 
 Edit the copy in this repo, then commit. Every agent reads the same files

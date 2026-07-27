@@ -1,5 +1,5 @@
 import { Database } from '../db/database.js';
-import { TaskRecord, TaskStatus } from '../types/index.js';
+import { ClaimResult, TaskRecord, TaskStatus } from '../types/index.js';
 
 export class TaskService {
   constructor(private db: Database) {}
@@ -52,6 +52,27 @@ export class TaskService {
     }
 
     return updated;
+  }
+
+  /** Atomic compare-and-swap claim. Moves TODO → IN_PROGRESS for one agent only. */
+  public async claimTask(taskId: number, agentId: string): Promise<ClaimResult<TaskRecord>> {
+    const res = await this.db.run(
+      `UPDATE tasks
+       SET assigned_to = ?, status = 'IN_PROGRESS', claimed_by = ?, claimed_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?
+         AND status = 'TODO'
+         AND (assigned_to = 'unassigned' OR assigned_to = ?)`,
+      [agentId, agentId, taskId, agentId]
+    );
+
+    const record = await this.db.get<TaskRecord>(`SELECT * FROM tasks WHERE id = ?`, [taskId]);
+
+    if (!record) {
+      throw new Error(`Task with ID ${taskId} not found`);
+    }
+
+    return { claimed: res.changes === 1, record };
   }
 
   public async getTaskBoard(status?: TaskStatus, assignedTo?: string): Promise<TaskRecord[]> {

@@ -4,6 +4,9 @@ export class MessagingService {
         this.db = db;
     }
     async sendMessage(fromAgent, toAgent, topic, content, status = 'UNREAD') {
+        if (status === 'ACTION_REQUIRED' && toAgent === 'all') {
+            throw new Error('ACTION_REQUIRED messages must name a single agent in to_agent, not "all"');
+        }
         const result = await this.db.run(`INSERT INTO messages (from_agent, to_agent, topic, content, status) VALUES (?, ?, ?, ?, ?)`, [fromAgent, toAgent, topic, content, status]);
         const record = await this.db.get(`SELECT * FROM messages WHERE id = ?`, [result.lastID]);
         if (!record) {
@@ -29,5 +32,18 @@ export class MessagingService {
             throw new Error(`Message with ID ${messageId} not found`);
         }
         return record;
+    }
+    /** Atomic compare-and-swap claim. Exactly one agent wins when called concurrently. */
+    async claimMessage(messageId, agentId) {
+        const res = await this.db.run(`UPDATE messages
+       SET claimed_by = ?, claimed_at = CURRENT_TIMESTAMP, status = 'READ'
+       WHERE id = ?
+         AND claimed_by IS NULL
+         AND to_agent = ?`, [agentId, messageId, agentId]);
+        const record = await this.db.get(`SELECT * FROM messages WHERE id = ?`, [messageId]);
+        if (!record) {
+            throw new Error(`Message with ID ${messageId} not found`);
+        }
+        return { claimed: res.changes === 1, record };
     }
 }

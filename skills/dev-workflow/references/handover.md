@@ -110,9 +110,7 @@ they or the next agent should run.
 ## Receiving a handover
 
 If you were idling when it arrived, the `standby` skill governs how you claim it
-— mark the message `READ` **before** starting, so a second idle agent is less
-likely to pick up the same work. Note that claim is advisory, not atomic; see
-`standby` for what that does and doesn't guarantee.
+— use `claim_message` before starting (atomic; only one agent wins).
 
 1. `fetch_inbox({ agent_id: "<you>", status: "ACTION_REQUIRED" })`
 2. `search_shared_memory` for the topic and module.

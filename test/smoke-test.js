@@ -96,8 +96,8 @@ async function runSmokeTest() {
   const listRes = await sendRequest('tools/list');
   const tools = listRes.result.tools;
   console.log(`  Found ${tools.length} MCP tools:`, tools.map((t) => t.name).join(', '));
-  if (tools.length !== 8) {
-    throw new Error(`Expected 8 tools, found ${tools.length}`);
+  if (tools.length !== 10) {
+    throw new Error(`Expected 10 tools, found ${tools.length}`);
   }
 
   // 3. Test save_shared_memory
@@ -154,6 +154,28 @@ async function runSmokeTest() {
   const inboxOutput = JSON.parse(inboxRes.result.content[0].text);
   console.log(`  Codex Inbox contains ${inboxOutput.total} message(s). PASSED.`);
 
+  // 6b. Test claim_message (atomic claim)
+  console.log('\n[Step 6b] Calling claim_message (Codex claims handoff)...');
+  const claimRes = await sendRequest('tools/call', {
+    name: 'claim_message',
+    arguments: { message_id: msgId, agent_id: 'codex' },
+  });
+  const claimOutput = JSON.parse(claimRes.result.content[0].text);
+  if (!claimOutput.claimed) {
+    throw new Error('claim_message should return claimed:true for first claim');
+  }
+  console.log('  claim_message claimed:', claimOutput.claimed, 'PASSED.');
+
+  const claimAgainRes = await sendRequest('tools/call', {
+    name: 'claim_message',
+    arguments: { message_id: msgId, agent_id: 'cursor' },
+  });
+  const claimAgainOutput = JSON.parse(claimAgainRes.result.content[0].text);
+  if (claimAgainOutput.claimed) {
+    throw new Error('Second claim_message should return claimed:false');
+  }
+  console.log('  Duplicate claim rejected. PASSED.');
+
   // 7. Test mark_message_status
   console.log('\n[Step 7] Calling mark_message_status (Codex marks task COMPLETED)...');
   const markRes = await sendRequest('tools/call', {
@@ -202,7 +224,7 @@ async function runSmokeTest() {
   console.log(`  Task Board query returned ${getTaskBoardOutput.total} active task(s). PASSED.`);
 
   console.log('\n✨ =============================================== ✨');
-  console.log('🎉 ALL 8 MCP TOOLS SMOKE TESTED OVER STDIO SUCCESSFULLY!');
+  console.log('🎉 ALL 10 MCP TOOLS SMOKE TESTED OVER STDIO SUCCESSFULLY!');
   console.log('✨ =============================================== ✨\n');
 
   serverProcess.kill();

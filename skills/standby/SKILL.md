@@ -69,8 +69,16 @@ alive. An empty wake is the correct and most common outcome.
 
 ## Claim before you act
 
-**The moment you decide to act on a message, mark it `READ`** —
-`mark_message_status({ message_id: <id>, status: "READ" })` — *before* you start.
+**Use `claim_message` — not `mark_message_status(READ)` — to take ownership.**
+`claim_message` is an atomic compare-and-swap: exactly one agent wins if two try
+at once. `mark_message_status` remains for setting `COMPLETED` when done.
+
+```
+claim_message({ message_id: <id>, agent_id: "<you>" })
+→ { claimed: true, record: {...} }   # you own it — proceed
+→ { claimed: false, record: {...} }  # someone else got there first — stop
+```
+
 Then:
 
 - **Addressed to you specifically** → it's yours; act on it.
@@ -82,16 +90,16 @@ Don't rely on seeing another agent's `READ` as a safety check — the cycle only
 fetches `ACTION_REQUIRED` and `UNREAD`, so a claimed message never shows up
 there anyway.
 
-### The claim is advisory, not atomic — know this
+### The claim is atomic — with one legacy caveat
 
-`mark_message_status` is an unconditional `UPDATE ... WHERE id = ?`. If two
-agents fetch the same message before either marks it, **both writes succeed and
-both agents proceed.** The task board has the same problem: `update_task_status`
-is a read-modify-write, so two agents can both move a `TODO` to `IN_PROGRESS`.
+`claim_message` uses `UPDATE … WHERE claimed_by IS NULL`; only one agent gets
+`claimed: true`. Use it instead of `mark_message_status(READ)` for taking ownership.
 
-Marking `READ` first still matters — it shrinks the window from minutes to
-seconds — but do not treat it as a guarantee. Three things keep the residual
-risk small:
+`mark_message_status` is still unconditional — use it only for `COMPLETED`, not
+for claiming. `claim_task` is the equivalent for the task board (`TODO` →
+`IN_PROGRESS`).
+
+Three additional mitigations still apply:
 
 1. **Staggered wake minutes** (above) — agents rarely wake together.
 2. **One owner per actionable message** (below) — nothing is contested by design.
@@ -104,10 +112,8 @@ risk small:
 If you discover after the fact that another agent handled the same item, say so
 once and stop — don't re-report the same findings on top of theirs.
 
-> Closing the race properly needs an atomic compare-and-swap in the Memorai
-> server (`UPDATE … WHERE claimed_by IS NULL`, then check `changes === 1`).
-> That's a code change to `~/memorai`, deliberately not done yet. If duplicate
-> work starts actually happening, that's the fix — not more prompt rules.
+> `send_agent_message` with `ACTION_REQUIRED` + `to_agent: "all"` is rejected by
+> the server. Broadcasts are FYI-only at `UNREAD`.
 
 ### Never broadcast actionable work
 

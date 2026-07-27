@@ -27,6 +27,20 @@ export class TaskService {
         }
         return updated;
     }
+    /** Atomic compare-and-swap claim. Moves TODO → IN_PROGRESS for one agent only. */
+    async claimTask(taskId, agentId) {
+        const res = await this.db.run(`UPDATE tasks
+       SET assigned_to = ?, status = 'IN_PROGRESS', claimed_by = ?, claimed_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?
+         AND status = 'TODO'
+         AND (assigned_to = 'unassigned' OR assigned_to = ?)`, [agentId, agentId, taskId, agentId]);
+        const record = await this.db.get(`SELECT * FROM tasks WHERE id = ?`, [taskId]);
+        if (!record) {
+            throw new Error(`Task with ID ${taskId} not found`);
+        }
+        return { claimed: res.changes === 1, record };
+    }
     async getTaskBoard(status, assignedTo) {
         let sql = `SELECT * FROM tasks WHERE 1=1`;
         const params = [];

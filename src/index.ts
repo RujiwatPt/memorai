@@ -22,7 +22,7 @@ async function main() {
   const server = new Server(
     {
       name: 'memorai-hub',
-      version: '1.0.0',
+      version: '1.1.0',
     },
     {
       capabilities: {
@@ -92,7 +92,8 @@ async function main() {
         },
         {
           name: 'mark_message_status',
-          description: 'Update the status of a received message (e.g. mark as READ or COMPLETED).',
+          description:
+            'Update the status of a received message (e.g. mark as COMPLETED). Prefer claim_message to take ownership.',
           inputSchema: {
             type: 'object',
             properties: {
@@ -107,6 +108,35 @@ async function main() {
               },
             },
             required: ['message_id', 'status'],
+          },
+        },
+        {
+          name: 'claim_message',
+          description:
+            'Atomically claim a message addressed to you. Sets claimed_by, marks READ. Returns claimed:false if another agent already claimed it.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              message_id: { type: 'number', description: 'ID of the message to claim' },
+              agent_id: {
+                type: 'string',
+                description: 'The calling agent ID (must match to_agent on the message)',
+              },
+            },
+            required: ['message_id', 'agent_id'],
+          },
+        },
+        {
+          name: 'claim_task',
+          description:
+            'Atomically claim a TODO task assigned to you or unassigned. Sets IN_PROGRESS. Returns claimed:false if another agent already claimed it.',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              task_id: { type: 'number', description: 'ID of the task to claim' },
+              agent_id: { type: 'string', description: 'The calling agent ID' },
+            },
+            required: ['task_id', 'agent_id'],
           },
         },
         {
@@ -285,6 +315,36 @@ async function main() {
               {
                 type: 'text',
                 text: JSON.stringify({ success: true, message: updated }, null, 2),
+              },
+            ],
+          };
+        }
+
+        case 'claim_message': {
+          const messageId = Number(toolArgs.message_id);
+          const agentId = String(toolArgs.agent_id || '');
+
+          const result = await messagingService.claimMessage(messageId, agentId);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2),
+              },
+            ],
+          };
+        }
+
+        case 'claim_task': {
+          const taskId = Number(toolArgs.task_id);
+          const agentId = String(toolArgs.agent_id || '');
+
+          const result = await taskService.claimTask(taskId, agentId);
+          return {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(result, null, 2),
               },
             ],
           };

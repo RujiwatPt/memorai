@@ -138,7 +138,8 @@ that's what makes the lap detectable.
 Content must be self-contained: goal, current state, exact next step, file paths.
 "Continue where I left off" is not a handoff.
 
-Acknowledge what you receive: `mark_message_status` → `READ` when picked up.
+Acknowledge what you receive: `claim_message` when picking up work;
+`mark_message_status` → `COMPLETED` when finished.
 
 ## Task board
 

@@ -1,6 +1,7 @@
 export declare class Database {
     private db;
     constructor(dbPath?: string);
+    private migrate;
     init(): Promise<void>;
     run(sql: string, params?: unknown[]): Promise<{
         lastID: number;

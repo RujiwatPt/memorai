@@ -7,6 +7,20 @@ description: Shared memory, inter-agent messaging, and task handoff protocol for
 
 Use the **Memorai** MCP tools to coordinate state, share memories, and hand off tasks between **Cursor**, **Google Antigravity**, **Claude Desktop**, and **OpenAI Codex**.
 
+## MCP server name per agent
+
+The server may appear under different names depending on the host app:
+
+| Agent | Typical MCP server name | Config location |
+|---|---|---|
+| **Cursor** | `user-memorai` | `~/.cursor/mcp.json` → `mcpServers.memorai` |
+| **Codex** | `memorai` | `~/.codex/config.toml` → `[mcp_servers.memorai]` |
+| **Claude** | `memorai` | `~/.claude.json` |
+| **Antigravity** | `memorai` | `~/.gemini/settings.json` → `mcpServers.memorai` |
+
+In Cursor, call tools via the `user-memorai` server (e.g. `fetch_inbox` on
+`user-memorai`). The `agent_id` you pass is still `cursor`.
+
 ## 1. When to Use Memorai Tools
 
 ### A. Saving Shared Memory (`save_shared_memory`)
@@ -66,10 +80,19 @@ Use the **Memorai** MCP tools to coordinate state, share memories, and hand off 
   }
   ```
 
+### F. Claiming work atomically (`claim_message`, `claim_task`)
+- **When**: Picking up a handoff or task that another agent might also see.
+- **Prefer over** `mark_message_status(READ)` for claiming — only one agent wins.
+- **Example**:
+  ```json
+  { "message_id": 3, "agent_id": "cursor" }
+  ```
+  Returns `{ "claimed": true, "record": {...} }` or `{ "claimed": false, ... }`.
+
 ## 2. Best Practices for Agents
 1. **Be Concise in Memory**: Store structured context and file paths, not huge raw code blocks.
 2. **Always Tag Memories**: Use relevant tags (e.g., `["database", "migration"]`, `["frontend", "ui"]`).
-3. **Acknowledge Handoffs**: Mark received messages as `READ` or `COMPLETED` using `mark_message_status` once finished.
+3. **Acknowledge Handoffs**: Use `claim_message` to take ownership, then `mark_message_status` → `COMPLETED` when finished.
 4. **Target Specific Provider Agents**: Always target a specific agent (`to_agent: "cursor"`, `"codex"`, `"claude"`, or `"antigravity"`) for actionable handoffs (`status: "ACTION_REQUIRED"`). Avoid broadcasting actionable work to `"all"` to prevent multi-agent collisions.
 5. **Multi-Repo Context & Absolute Paths**: Always include the absolute repository root path (e.g., `Repository: /path/to/RepoName`) and git branch in `send_agent_message` content and `save_shared_memory` so receiving agents in different workspace folders can identify and target the correct repository immediately.
 

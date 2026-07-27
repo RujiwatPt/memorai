@@ -19,7 +19,26 @@ export class Database {
     this.db = new sqlite3.Database(targetPath);
   }
 
+  private async migrate(): Promise<void> {
+    const messageCols = await this.all<{ name: string }>(`PRAGMA table_info(messages)`);
+    const messageNames = new Set(messageCols.map((c) => c.name));
+    if (!messageNames.has('claimed_by')) {
+      await this.exec(`ALTER TABLE messages ADD COLUMN claimed_by TEXT`);
+      await this.exec(`ALTER TABLE messages ADD COLUMN claimed_at DATETIME`);
+    }
+
+    const taskCols = await this.all<{ name: string }>(`PRAGMA table_info(tasks)`);
+    const taskNames = new Set(taskCols.map((c) => c.name));
+    if (!taskNames.has('claimed_by')) {
+      await this.exec(`ALTER TABLE tasks ADD COLUMN claimed_by TEXT`);
+      await this.exec(`ALTER TABLE tasks ADD COLUMN claimed_at DATETIME`);
+    }
+  }
+
   public async init(): Promise<void> {
+    await this.exec(`PRAGMA journal_mode = WAL;`);
+    await this.exec(`PRAGMA busy_timeout = 5000;`);
+
     await this.exec(`
       CREATE TABLE IF NOT EXISTS memories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,6 +56,8 @@ export class Database {
         topic TEXT NOT NULL,
         content TEXT NOT NULL,
         status TEXT NOT NULL DEFAULT 'UNREAD',
+        claimed_by TEXT,
+        claimed_at DATETIME,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
@@ -56,6 +77,8 @@ export class Database {
       CREATE INDEX IF NOT EXISTS idx_messages_status ON messages(status);
       CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
     `);
+
+    await this.migrate();
   }
 
   public run(sql: string, params: unknown[] = []): Promise<{ lastID: number; changes: number }> {
