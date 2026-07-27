@@ -62,6 +62,11 @@ async function main() {
                 enum: ['UNREAD', 'ACTION_REQUIRED'],
                 description: 'Status of the message (default: UNREAD)',
               },
+              relay_parent_id: {
+                type: 'integer',
+                description:
+                  'ID of the claimed parent message when relaying. The server derives and enforces origin and hop count.',
+              },
             },
             required: ['from_agent', 'to_agent', 'topic', 'content'],
           },
@@ -277,8 +282,19 @@ async function main() {
           const topic = String(toolArgs.topic || '');
           const content = String(toolArgs.content || '');
           const status = (toolArgs.status as MessageStatus) || 'UNREAD';
+          const relayParentId =
+            typeof toolArgs.relay_parent_id === 'number'
+              ? toolArgs.relay_parent_id
+              : undefined;
 
-          const msg = await messagingService.sendMessage(fromAgent, toAgent, topic, content, status);
+          const msg = await messagingService.sendMessage(
+            fromAgent,
+            toAgent,
+            topic,
+            content,
+            status,
+            relayParentId
+          );
           return {
             content: [
               {

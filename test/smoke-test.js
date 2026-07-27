@@ -140,6 +140,13 @@ async function runSmokeTest() {
   });
   const sendMsgOutput = JSON.parse(sendMsgRes.result.content[0].text);
   const msgId = sendMsgOutput.message.id;
+  if (
+    sendMsgOutput.message.relay_origin !== 'cursor' ||
+    sendMsgOutput.message.relay_hop !== 1 ||
+    sendMsgOutput.message.relay_parent_id !== null
+  ) {
+    throw new Error('Initial handoff should receive server-owned relay metadata');
+  }
   console.log(`  Message Sent (ID ${msgId}). PASSED.`);
 
   // 6. Test fetch_inbox (Codex inbox)
@@ -168,13 +175,49 @@ async function runSmokeTest() {
 
   const claimAgainRes = await sendRequest('tools/call', {
     name: 'claim_message',
-    arguments: { message_id: msgId, agent_id: 'cursor' },
+    arguments: { message_id: msgId, agent_id: 'codex' },
   });
   const claimAgainOutput = JSON.parse(claimAgainRes.result.content[0].text);
   if (claimAgainOutput.claimed) {
     throw new Error('Second claim_message should return claimed:false');
   }
   console.log('  Duplicate claim rejected. PASSED.');
+
+  const relayRes = await sendRequest('tools/call', {
+    name: 'send_agent_message',
+    arguments: {
+      from_agent: 'codex',
+      to_agent: 'antigravity',
+      topic: 'Write schema unit tests',
+      content: 'Continue the claimed handoff.',
+      status: 'ACTION_REQUIRED',
+      relay_parent_id: msgId,
+    },
+  });
+  const relayOutput = JSON.parse(relayRes.result.content[0].text);
+  if (
+    relayOutput.message.relay_origin !== 'cursor' ||
+    relayOutput.message.relay_hop !== 2 ||
+    relayOutput.message.relay_parent_id !== msgId
+  ) {
+    throw new Error('Relay metadata should be derived from the claimed parent');
+  }
+  console.log('  Structured relay metadata enforced. PASSED.');
+
+  const rejectedBroadcastRes = await sendRequest('tools/call', {
+    name: 'send_agent_message',
+    arguments: {
+      from_agent: 'cursor',
+      to_agent: 'all',
+      topic: 'Invalid actionable broadcast',
+      content: 'This must be rejected because it has no single owner.',
+      status: 'ACTION_REQUIRED',
+    },
+  });
+  if (!rejectedBroadcastRes.result.isError) {
+    throw new Error('ACTION_REQUIRED broadcast should be rejected');
+  }
+  console.log('  ACTION_REQUIRED broadcast rejected. PASSED.');
 
   // 7. Test mark_message_status
   console.log('\n[Step 7] Calling mark_message_status (Codex marks task COMPLETED)...');
@@ -203,12 +246,37 @@ async function runSmokeTest() {
   const taskId = createTaskOutput.task.id;
   console.log(`  Task Created (ID ${taskId}). PASSED.`);
 
+  const claimTaskRes = await sendRequest('tools/call', {
+    name: 'claim_task',
+    arguments: {
+      task_id: taskId,
+      agent_id: 'claude',
+    },
+  });
+  const claimTaskOutput = JSON.parse(claimTaskRes.result.content[0].text);
+  if (!claimTaskOutput.claimed || claimTaskOutput.record.status !== 'IN_PROGRESS') {
+    throw new Error('claim_task should claim the assigned TODO task');
+  }
+  console.log('  Task claimed atomically. PASSED.');
+
+  const claimTaskAgainRes = await sendRequest('tools/call', {
+    name: 'claim_task',
+    arguments: {
+      task_id: taskId,
+      agent_id: 'claude',
+    },
+  });
+  const claimTaskAgainOutput = JSON.parse(claimTaskAgainRes.result.content[0].text);
+  if (claimTaskAgainOutput.claimed) {
+    throw new Error('Second claim_task should return claimed:false');
+  }
+  console.log('  Duplicate task claim rejected. PASSED.');
+
   const updateTaskRes = await sendRequest('tools/call', {
     name: 'update_task_status',
     arguments: {
       task_id: taskId,
-      status: 'IN_PROGRESS',
-      assigned_to: 'antigravity',
+      status: 'REVIEW',
     },
   });
   const updateTaskOutput = JSON.parse(updateTaskRes.result.content[0].text);
@@ -217,7 +285,7 @@ async function runSmokeTest() {
   const getTaskBoardRes = await sendRequest('tools/call', {
     name: 'get_task_board',
     arguments: {
-      status: 'IN_PROGRESS',
+      status: 'REVIEW',
     },
   });
   const getTaskBoardOutput = JSON.parse(getTaskBoardRes.result.content[0].text);

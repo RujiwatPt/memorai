@@ -3,11 +3,39 @@ export class MessagingService {
     constructor(db) {
         this.db = db;
     }
-    async sendMessage(fromAgent, toAgent, topic, content, status = 'UNREAD') {
+    async sendMessage(fromAgent, toAgent, topic, content, status = 'UNREAD', relayParentId) {
         if (status === 'ACTION_REQUIRED' && toAgent === 'all') {
             throw new Error('ACTION_REQUIRED messages must name a single agent in to_agent, not "all"');
         }
-        const result = await this.db.run(`INSERT INTO messages (from_agent, to_agent, topic, content, status) VALUES (?, ?, ?, ?, ?)`, [fromAgent, toAgent, topic, content, status]);
+        let relayOrigin = fromAgent;
+        let relayHop = 1;
+        let parentId = null;
+        if (relayParentId !== undefined) {
+            if (!Number.isInteger(relayParentId) || relayParentId <= 0) {
+                throw new Error('relay_parent_id must be a positive message ID');
+            }
+            const parent = await this.db.get(`SELECT * FROM messages WHERE id = ?`, [relayParentId]);
+            if (!parent) {
+                throw new Error(`Relay parent message with ID ${relayParentId} not found`);
+            }
+            if (parent.to_agent !== fromAgent || parent.claimed_by !== fromAgent) {
+                throw new Error(`Only ${parent.to_agent}, after claiming message ${relayParentId}, can relay it`);
+            }
+            if (parent.relay_origin === fromAgent || parent.relay_hop >= 4) {
+                throw new Error(`Message ${relayParentId} has completed a full lap and cannot be relayed again`);
+            }
+            const existingRelay = await this.db.get(`SELECT id FROM messages WHERE relay_parent_id = ?`, [relayParentId]);
+            if (existingRelay) {
+                throw new Error(`Message ${relayParentId} was already relayed as message ${existingRelay.id}`);
+            }
+            relayOrigin = parent.relay_origin;
+            relayHop = parent.relay_hop + 1;
+            parentId = parent.id;
+        }
+        const result = await this.db.run(`INSERT INTO messages (
+        from_agent, to_agent, topic, content, status,
+        relay_origin, relay_hop, relay_parent_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [fromAgent, toAgent, topic, content, status, relayOrigin, relayHop, parentId]);
         const record = await this.db.get(`SELECT * FROM messages WHERE id = ?`, [result.lastID]);
         if (!record) {
             throw new Error('Failed to retrieve newly created message record');

@@ -22,6 +22,9 @@ export interface MessageRecord {
   status: MessageStatus;
   claimed_by: string | null;
   claimed_at: string | null;
+  relay_origin: string;
+  relay_hop: number;
+  relay_parent_id: number | null;
   created_at: string;
 }
 

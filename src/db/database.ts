@@ -5,6 +5,9 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const BUSY_TIMEOUT_MS = 5000;
+const MIGRATION_LOCK_WAIT_MS = 50;
+const MIGRATION_RETRY_DELAY_MS = 25;
 
 export class Database {
   private db!: sqlite3.Database;
@@ -17,29 +20,94 @@ export class Database {
     }
 
     this.db = new sqlite3.Database(targetPath);
+    this.db.configure('busyTimeout', MIGRATION_LOCK_WAIT_MS);
+  }
+
+  private async retryBusy<T>(operation: () => Promise<T>): Promise<T> {
+    const deadline = Date.now() + BUSY_TIMEOUT_MS;
+
+    while (true) {
+      try {
+        return await operation();
+      } catch (error) {
+        const isBusy =
+          error instanceof Error &&
+          (error as NodeJS.ErrnoException).code === 'SQLITE_BUSY';
+        if (!isBusy || Date.now() >= deadline) {
+          throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, MIGRATION_RETRY_DELAY_MS));
+      }
+    }
   }
 
   private async migrate(): Promise<void> {
-    const messageCols = await this.all<{ name: string }>(`PRAGMA table_info(messages)`);
-    const messageNames = new Set(messageCols.map((c) => c.name));
-    if (!messageNames.has('claimed_by')) {
-      await this.exec(`ALTER TABLE messages ADD COLUMN claimed_by TEXT`);
-      await this.exec(`ALTER TABLE messages ADD COLUMN claimed_at DATETIME`);
-    }
+    // Long SQLite busy waits occupy libuv workers and can starve the connection
+    // holding the migration lock. Retry asynchronously while acquiring the lock.
+    await this.exec(`PRAGMA busy_timeout = ${MIGRATION_LOCK_WAIT_MS};`);
 
-    const taskCols = await this.all<{ name: string }>(`PRAGMA table_info(tasks)`);
-    const taskNames = new Set(taskCols.map((c) => c.name));
-    if (!taskNames.has('claimed_by')) {
-      await this.exec(`ALTER TABLE tasks ADD COLUMN claimed_by TEXT`);
-      await this.exec(`ALTER TABLE tasks ADD COLUMN claimed_at DATETIME`);
+    try {
+      await this.retryBusy(() => this.exec(`BEGIN IMMEDIATE`));
+
+      try {
+        const messageCols = await this.all<{ name: string }>(`PRAGMA table_info(messages)`);
+        const messageNames = new Set(messageCols.map((column) => column.name));
+        if (!messageNames.has('claimed_by')) {
+          await this.exec(`ALTER TABLE messages ADD COLUMN claimed_by TEXT`);
+        }
+        if (!messageNames.has('claimed_at')) {
+          await this.exec(`ALTER TABLE messages ADD COLUMN claimed_at DATETIME`);
+        }
+        if (!messageNames.has('relay_origin')) {
+          await this.exec(`ALTER TABLE messages ADD COLUMN relay_origin TEXT`);
+        }
+        if (!messageNames.has('relay_hop')) {
+          await this.exec(
+            `ALTER TABLE messages ADD COLUMN relay_hop INTEGER NOT NULL DEFAULT 1`
+          );
+        }
+        if (!messageNames.has('relay_parent_id')) {
+          await this.exec(`ALTER TABLE messages ADD COLUMN relay_parent_id INTEGER`);
+        }
+        await this.exec(
+          `UPDATE messages SET relay_origin = from_agent WHERE relay_origin IS NULL`
+        );
+
+        const taskCols = await this.all<{ name: string }>(`PRAGMA table_info(tasks)`);
+        const taskNames = new Set(taskCols.map((column) => column.name));
+        if (!taskNames.has('claimed_by')) {
+          await this.exec(`ALTER TABLE tasks ADD COLUMN claimed_by TEXT`);
+        }
+        if (!taskNames.has('claimed_at')) {
+          await this.exec(`ALTER TABLE tasks ADD COLUMN claimed_at DATETIME`);
+        }
+
+        await this.exec(`
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_relay_parent
+          ON messages(relay_parent_id)
+          WHERE relay_parent_id IS NOT NULL;
+        `);
+        await this.exec(`COMMIT`);
+      } catch (error) {
+        try {
+          await this.exec(`ROLLBACK`);
+        } catch (rollbackError) {
+          throw new Error('Database migration and rollback both failed', {
+            cause: new AggregateError([error, rollbackError]),
+          });
+        }
+        throw error;
+      }
+    } finally {
+      await this.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS};`);
     }
   }
 
   public async init(): Promise<void> {
-    await this.exec(`PRAGMA journal_mode = WAL;`);
-    await this.exec(`PRAGMA busy_timeout = 5000;`);
+    await this.exec(`PRAGMA busy_timeout = ${MIGRATION_LOCK_WAIT_MS};`);
+    await this.retryBusy(() => this.exec(`PRAGMA journal_mode = WAL;`));
 
-    await this.exec(`
+    await this.retryBusy(() => this.exec(`
       CREATE TABLE IF NOT EXISTS memories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         agent_id TEXT NOT NULL,
@@ -58,6 +126,9 @@ export class Database {
         status TEXT NOT NULL DEFAULT 'UNREAD',
         claimed_by TEXT,
         claimed_at DATETIME,
+        relay_origin TEXT NOT NULL,
+        relay_hop INTEGER NOT NULL DEFAULT 1 CHECK (relay_hop BETWEEN 1 AND 4),
+        relay_parent_id INTEGER REFERENCES messages(id),
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
 
@@ -67,6 +138,8 @@ export class Database {
         description TEXT NOT NULL,
         assigned_to TEXT NOT NULL DEFAULT 'unassigned',
         status TEXT NOT NULL DEFAULT 'TODO',
+        claimed_by TEXT,
+        claimed_at DATETIME,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
@@ -76,7 +149,7 @@ export class Database {
       CREATE INDEX IF NOT EXISTS idx_messages_to ON messages(to_agent);
       CREATE INDEX IF NOT EXISTS idx_messages_status ON messages(status);
       CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
-    `);
+    `));
 
     await this.migrate();
   }
