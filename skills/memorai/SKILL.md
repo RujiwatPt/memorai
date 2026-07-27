@@ -70,3 +70,6 @@ Use the **Memorai** MCP tools to coordinate state, share memories, and hand off 
 1. **Be Concise in Memory**: Store structured context and file paths, not huge raw code blocks.
 2. **Always Tag Memories**: Use relevant tags (e.g., `["database", "migration"]`, `["frontend", "ui"]`).
 3. **Acknowledge Handoffs**: Mark received messages as `READ` or `COMPLETED` using `mark_message_status` once finished.
+4. **Target Specific Provider Agents**: Always target a specific agent (`to_agent: "cursor"`, `"codex"`, `"claude"`, or `"antigravity"`) for actionable handoffs (`status: "ACTION_REQUIRED"`). Avoid broadcasting actionable work to `"all"` to prevent multi-agent collisions.
+5. **Multi-Repo Context & Absolute Paths**: Always include the absolute repository root path (e.g., `Repository: /Users/howlinglight/RepoName`) and git branch in `send_agent_message` content and `save_shared_memory` so receiving agents in different workspace folders can identify and target the correct repository immediately.
+
