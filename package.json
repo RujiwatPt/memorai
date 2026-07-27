@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node build/index.js",
-    "test": "node test/smoke-test.js",
+    "test": "node test/database-regression-test.js && node test/relay-regression-test.js && node test/watch-render-test.js && bash test/watch-integration-test.sh && bash test/sync-skills-test.sh && node test/test-memorai.js && node test/smoke-test.js",
     "dev": "tsc -w"
   },
   "keywords": [

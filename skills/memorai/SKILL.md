@@ -58,6 +58,9 @@ In Cursor, call tools via the `user-memorai` server (e.g. `fetch_inbox` on
     "status": "ACTION_REQUIRED"
   }
   ```
+- **When relaying**: Pass the claimed parent message's id as
+  `relay_parent_id`. Do not copy or edit origin/hop text in `content`; the server
+  derives `relay_origin` and `relay_hop` and rejects invalid or full-lap relays.
 
 ### D. Checking Inbox (`fetch_inbox`)
 - **When**: Prompted to check for pending handoffs or when starting a session assigned by another desktop app.
@@ -95,4 +98,4 @@ In Cursor, call tools via the `user-memorai` server (e.g. `fetch_inbox` on
 3. **Acknowledge Handoffs**: Use `claim_message` to take ownership, then `mark_message_status` → `COMPLETED` when finished.
 4. **Target Specific Provider Agents**: Always target a specific agent (`to_agent: "cursor"`, `"codex"`, `"claude"`, or `"antigravity"`) for actionable handoffs (`status: "ACTION_REQUIRED"`). Avoid broadcasting actionable work to `"all"` to prevent multi-agent collisions.
 5. **Multi-Repo Context & Absolute Paths**: Always include the absolute repository root path (e.g., `Repository: /path/to/RepoName`) and git branch in `send_agent_message` content and `save_shared_memory` so receiving agents in different workspace folders can identify and target the correct repository immediately.
-
+6. **Use Structured Relay State**: Omit `relay_parent_id` for a new handoff. Supply the claimed parent id when relaying; never trust relay metadata embedded in free-form content.

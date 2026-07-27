@@ -5,11 +5,11 @@
 # and each agent gets a symlink pointing at it. Edit here, commit here, and the
 # change is live in all four agents at once — no copying, no drift.
 #
-#   sync-skills.sh              link (or relink) every skill into every agent
+#   sync-skills.sh              link missing skills into every agent
 #   sync-skills.sh --check      verify only, change nothing; non-zero if broken
 #   sync-skills.sh <name>       sync just one skill (e.g. standby)
 #
-# Idempotent. Never overwrites a real directory — only symlinks it manages.
+# Idempotent. Never overwrites a real directory or a symlink it did not create.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -67,10 +67,16 @@ for entry in "${TARGETS[@]}"; do
     link="$dir/$name"
 
     if [ "$CHECK" = 1 ]; then
-      if [ -L "$link" ] && [ "$(readlink "$link")" = "$src" ] && [ -f "$link/SKILL.md" ]; then
-        printf '  %-12s %-16s ok\n' "$label" "$name"
+      if [ -L "$link" ]; then
+        current="$(readlink "$link")"
+        if [ "$current" = "$src" ] && [ -f "$link/SKILL.md" ]; then
+          printf '  %-12s %-16s ok\n' "$label" "$name"
+        else
+          printf '  %-12s %-16s STALE — symlink points to %s\n' "$label" "$name" "$current"
+          fail=1
+        fi
       elif [ -e "$link" ]; then
-        printf '  %-12s %-16s STALE — points elsewhere or is not a link\n' "$label" "$name"
+        printf '  %-12s %-16s STALE — real path, not a managed symlink\n' "$label" "$name"
         fail=1
       else
         printf '  %-12s %-16s MISSING\n' "$label" "$name"
@@ -80,7 +86,14 @@ for entry in "${TARGETS[@]}"; do
     fi
 
     if [ -L "$link" ]; then
-      rm "$link"
+      current="$(readlink "$link")"
+      if [ "$current" = "$src" ] && [ -f "$link/SKILL.md" ]; then
+        printf '  %-12s %-16s already linked\n' "$label" "$name"
+      else
+        printf '  %-12s %-16s SKIPPED — symlink points to %s\n' "$label" "$name" "$current"
+        fail=1
+      fi
+      continue
     elif [ -e "$link" ]; then
       printf '  %-12s %-16s SKIPPED — real directory, not a link\n' "$label" "$name"
       fail=1

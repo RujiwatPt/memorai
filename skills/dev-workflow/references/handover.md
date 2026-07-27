@@ -96,10 +96,14 @@ send_agent_message({
   from_agent: "<you>",
   to_agent: "<your successor in the ring — never 'all'>",
   topic: "Handover: <task>",
-  content: "relay: origin=<you> hop=1\n\nStatus + next steps + where the full doc lives.",
+  content: "Status + next steps + where the full doc lives.",
   status: "ACTION_REQUIRED"
 })
 ```
+
+That originates a handoff, so omit `relay_parent_id`. When relaying a received
+handoff, pass its claimed message id as `relay_parent_id`; Memorai derives the
+origin and hop count and rejects a second child or a full lap.
 
 ## Tell the user
 

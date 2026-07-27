@@ -36,7 +36,8 @@ bash ~/memorai/scripts/sync-skills.sh
 ```
 
 Links **every** skill in `skills/` into all four agents. Idempotent, and it
-refuses to clobber a real directory. Verify an existing install:
+refuses to clobber a real directory or an existing symlink that points
+elsewhere. Verify an existing install:
 
 ```bash
 bash ~/memorai/scripts/sync-skills.sh --check

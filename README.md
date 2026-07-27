@@ -74,17 +74,12 @@ Add to your Antigravity MCP extensions/settings panel:
 ```
 
 ### D. OpenAI Codex Desktop / Extension
-Add to your Codex MCP settings file (`~/.codex/mcp.json`):
+Add to `~/.codex/config.toml`:
 
-```json
-{
-  "mcpServers": {
-    "memorai": {
-      "command": "node",
-      "args": ["/path/to/memorai/build/index.js"]
-    }
-  }
-}
+```toml
+[mcp_servers.memorai]
+command = "node"
+args = ["/path/to/memorai/build/index.js"]
 ```
 
 ---
@@ -93,7 +88,7 @@ Add to your Codex MCP settings file (`~/.codex/mcp.json`):
 
 | Tool Name | Parameters | Description |
 |---|---|---|
-| `send_agent_message` | `from_agent`, `to_agent`, `topic`, `content`, `status` | Send direct task handoffs to another desktop app. |
+| `send_agent_message` | `from_agent`, `to_agent`, `topic`, `content`, `status`, `relay_parent_id` | Send a new handoff or relay a claimed parent with server-enforced origin and hop state. |
 | `fetch_inbox` | `agent_id`, `status`, `limit` | Fetch incoming handoffs addressed to the calling app. |
 | `mark_message_status` | `message_id`, `status` | Update message status (`READ`, `COMPLETED`). |
 | `save_shared_memory` | `agent_id`, `topic`, `content`, `tags` | Store key context, architecture decisions, or lessons. |

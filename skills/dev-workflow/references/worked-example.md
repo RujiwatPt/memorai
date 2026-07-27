@@ -161,8 +161,9 @@ In progress — ~70%. Compiles. Unit + integration green; e2e not yet written.
 
 Then `save_shared_memory` (tag `handover`) and `send_agent_message` with
 `ACTION_REQUIRED` to your **successor in the ring** — you're `claude`, so
-`to_agent: "cursor"` — opening the content with `relay: origin=claude hop=1`.
-Then tell the user where it all lives.
+`to_agent: "cursor"`. Omit `relay_parent_id` because this originates the
+handoff; Memorai assigns `relay_origin=claude` and `relay_hop=1`. Then tell the
+user where it all lives.
 
 ---
 
