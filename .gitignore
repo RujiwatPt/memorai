@@ -1,5 +1,7 @@
 node_modules/
-build/
+# build/ is intentionally COMMITTED — every agent's MCP config launches
+# build/index.js directly, so a fresh clone must work without `npm install`.
+# Do not add it here, and do not `git rm --cached build/`.
 *.db
 *.db-wal
 *.db-shm

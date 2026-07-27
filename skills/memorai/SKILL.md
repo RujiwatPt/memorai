@@ -21,6 +21,33 @@ The server may appear under different names depending on the host app:
 In Cursor, call tools via the `user-memorai` server (e.g. `fetch_inbox` on
 `user-memorai`). The `agent_id` you pass is still `cursor`.
 
+## ⚠️ Restart every agent after a rebuild
+
+The server is **stdio-spawned per client, once, at client startup**. There is no
+port and no shared daemon — each agent gets its own process. A session that
+began before a `npm run build` therefore keeps running the **old build for its
+entire lifetime**, and nothing warns you.
+
+This fails silently and dangerously: an agent on a stale build simply won't see
+newer tools, so it falls back to older, weaker ones. A session predating
+`claim_message` will "claim" work with `mark_message_status(READ)` — which is
+**not atomic**, letting two agents claim the same item.
+
+**After any `npm run build`, fully restart every agent.** Reloading a window is
+usually not enough; the process must exit.
+
+**Check you're current — count the tools. It should be 10:**
+
+```
+send_agent_message · fetch_inbox · mark_message_status · claim_message ·
+claim_task · save_shared_memory · search_shared_memory · get_task_board ·
+create_task · update_task_status
+```
+
+Only 8, with `claim_message` and `claim_task` missing? You're on a stale server.
+Restart before claiming anything — and treat any claim you already made in that
+session as advisory, not exclusive.
+
 ## 1. When to Use Memorai Tools
 
 ### A. Saving Shared Memory (`save_shared_memory`)
