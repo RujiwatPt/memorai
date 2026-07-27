@@ -20,7 +20,7 @@ Memorai provides a local Model Context Protocol (MCP) server running on `stdio` 
 ### 1. Build Memorai
 
 ```bash
-cd /Users/howlinglight/memorai
+cd /path/to/memorai
 npm install
 npm run build
 ```
@@ -39,7 +39,7 @@ Open `Cursor Settings` -> `Features` -> `MCP` (or edit `~/.cursor/mcp.json` / wo
   "mcpServers": {
     "memorai": {
       "command": "node",
-      "args": ["/Users/howlinglight/memorai/build/index.js"]
+      "args": ["/path/to/memorai/build/index.js"]
     }
   }
 }
@@ -53,7 +53,7 @@ Edit `~/Library/Application Support/Claude/claude_desktop_config.json`:
   "mcpServers": {
     "memorai": {
       "command": "node",
-      "args": ["/Users/howlinglight/memorai/build/index.js"]
+      "args": ["/path/to/memorai/build/index.js"]
     }
   }
 }
@@ -67,7 +67,7 @@ Add to your Antigravity MCP extensions/settings panel:
   "mcpServers": {
     "memorai": {
       "command": "node",
-      "args": ["/Users/howlinglight/memorai/build/index.js"]
+      "args": ["/path/to/memorai/build/index.js"]
     }
   }
 }
@@ -81,7 +81,7 @@ Add to your Codex MCP settings file (`~/.codex/mcp.json`):
   "mcpServers": {
     "memorai": {
       "command": "node",
-      "args": ["/Users/howlinglight/memorai/build/index.js"]
+      "args": ["/path/to/memorai/build/index.js"]
     }
   }
 }
