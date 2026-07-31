@@ -58,6 +58,34 @@ folder elsewhere, run `bash ~/memorai/scripts/sync-skills.sh <name>` from a
 memorai clone to symlink it back into your agents — there is no per-skill
 installer.
 
+## Making it actually apply
+
+Installing a skill is **not** the same as applying it. A skill only activates
+when the model matches your request to its description — fine for "help me write
+a PR", useless for "never claim success you didn't observe", which has to hold on
+every task without being asked for.
+
+So there are two layers, and both are needed:
+
+| Layer | Script | What it does |
+|---|---|---|
+| **Install** | `sync-skills.sh` | Symlinks each skill into all four agents |
+| **Instruction** | `sync-agent-rules.sh` | Puts the non-negotiables in each agent's always-on file |
+
+```bash
+bash ~/memorai/scripts/sync-agent-rules.sh          # write / update
+bash ~/memorai/scripts/sync-agent-rules.sh --check  # verify
+bash ~/memorai/scripts/sync-agent-rules.sh --show   # print, to paste into Cursor
+```
+
+It writes `AGENT_RULES.md` into `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`, and
+`~/.gemini/GEMINI.md`, fenced by markers so re-runs update in place and anything
+you wrote outside them is preserved. Edit `AGENT_RULES.md`, re-run, and every
+agent picks up the change.
+
+**Cursor is the exception** — its user rules live in the app UI, not a file. Run
+`--show` and paste the block into Settings → Rules (User Rules).
+
 ## Editing
 
 Edit the copy in this repo, then commit. Every agent reads the same files
